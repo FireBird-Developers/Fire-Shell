@@ -1,43 +1,31 @@
-use windows::{
-    core::*, Win32::Foundation::*, Win32::Security::*, Win32::System::Memory::*,
+use std::ptr;
+
+use windows_sys::{
+    core::*, Win32::Foundation::*, Win32::{Security::*, System::WindowsProgramming::GetUserNameW}, Win32::System::Memory::*,
     Win32::System::Threading::*,
 };
 
-pub fn get() -> Result<()> {
+use crate::info::User;
+
+fn get_user() -> String {
     unsafe {
-        let mut token = HANDLE::default();
-        OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token)?;
+        let mut size = 0;
+        let retval = GetUserNameW(ptr::null_mut(), &mut size);
+        assert_eq!(retval, 0, "Should have failed");
 
-        let mut bytes_required = 0;
-        _ = GetTokenInformation(token, TokenPrivileges, None, 0, &mut bytes_required);
+        let mut username = Vec::with_capacity(size as usize);
+        let retval = GetUserNameW(username.as_mut_ptr(), &mut size);
+        assert_ne!(retval, 0, "Perform better error handling");
+        assert!((size as usize) <= username.capacity());
+        username.set_len(size as usize);
 
-        let buffer = LocalAlloc(LPTR, bytes_required as usize)?;
-
-        GetTokenInformation(
-            token,
-            TokenPrivileges,
-            Some(buffer.0 as *mut _),
-            bytes_required,
-            &mut bytes_required,
-        )?;
-
-        let header = &*(buffer.0 as *const TOKEN_PRIVILEGES);
-
-        let privileges =
-            std::slice::from_raw_parts(header.Privileges.as_ptr(), header.PrivilegeCount as usize);
-
-        for privilege in privileges {
-            let mut name_len = 0;
-            _ = LookupPrivilegeNameW(None, &privilege.Luid, PWSTR::null(), &mut name_len);
-
-            let mut name = vec![0u16; (name_len + 1) as usize];
-            let name = PWSTR(name.as_mut_ptr());
-            LookupPrivilegeNameW(None, &privilege.Luid, name, &mut name_len)?;
-
-            println!("{}", name.display())
-        }
-
-        _ = LocalFree(buffer);
-        Ok(())
+        // Beware: This leaves the trailing NUL character in the final string,
+        // you may want to remove it!
+        String::from_utf16(&username).unwrap()
+    }
+}
+impl User {
+    pub fn new()-> Self{
+        Self { name: get_user() }
     }
 }
