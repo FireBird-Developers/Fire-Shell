@@ -1,8 +1,7 @@
 use std::ptr;
 
 use windows_sys::{
-    core::*, Win32::Foundation::*, Win32::{Security::*, System::WindowsProgramming::GetUserNameW}, Win32::System::Memory::*,
-    Win32::System::Threading::*,
+    Win32::{System::WindowsProgramming::GetUserNameW},
 };
 
 use crate::info::User;
